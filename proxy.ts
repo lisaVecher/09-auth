@@ -1,7 +1,6 @@
 // proxy.ts
 
 import { NextRequest, NextResponse } from "next/server";
-import { parse } from "cookie";
 import { checkSession } from "@/lib/api/serverApi";
 
 const PRIVATE_PATHS = ["/profile", "/notes"];
@@ -15,6 +14,86 @@ function isPublicAuthPath(pathname: string) {
   return PUBLIC_AUTH_PATHS.some((path) => pathname.startsWith(path));
 }
 
+type ParsedSetCookie = {
+  name: string;
+  value: string;
+  options: {
+    expires?: Date;
+    path?: string;
+    maxAge?: number;
+    secure?: boolean;
+    httpOnly?: boolean;
+    sameSite?: "lax" | "strict" | "none";
+  };
+};
+
+function parseSetCookieString(cookieStr: string): ParsedSetCookie | null {
+  const parts = cookieStr.split(";").map((part) => part.trim());
+
+  if (parts.length === 0) return null;
+
+  const [nameValue, ...attributes] = parts;
+  const separatorIndex = nameValue.indexOf("=");
+
+  if (separatorIndex === -1) return null;
+
+  const name = nameValue.slice(0, separatorIndex).trim();
+  const value = nameValue.slice(separatorIndex + 1).trim();
+
+  const options: ParsedSetCookie["options"] = {};
+
+  for (const attr of attributes) {
+    const [rawKey, ...rawValueParts] = attr.split("=");
+    const key = rawKey.toLowerCase();
+    const valuePart = rawValueParts.join("=");
+
+    switch (key) {
+      case "expires":
+        if (valuePart) {
+          options.expires = new Date(valuePart);
+        }
+        break;
+
+      case "path":
+        if (valuePart) {
+          options.path = valuePart;
+        }
+        break;
+
+      case "max-age":
+        if (valuePart) {
+          options.maxAge = Number(valuePart);
+        }
+        break;
+
+      case "secure":
+        options.secure = true;
+        break;
+
+      case "httponly":
+        options.httpOnly = true;
+        break;
+
+      case "samesite": {
+        const sameSite = valuePart.toLowerCase();
+        if (
+          sameSite === "lax" ||
+          sameSite === "strict" ||
+          sameSite === "none"
+        ) {
+          options.sameSite = sameSite;
+        }
+        break;
+      }
+
+      default:
+        break;
+    }
+  }
+
+  return { name, value, options };
+}
+
 function applySetCookieHeaders(
   response: NextResponse,
   setCookieHeader?: string | string[],
@@ -26,21 +105,13 @@ function applySetCookieHeaders(
     : [setCookieHeader];
 
   for (const cookieStr of cookieArray) {
-    const parsed = parse(cookieStr);
+    const parsedCookie = parseSetCookieString(cookieStr);
 
-    const options = {
-      expires: parsed.Expires ? new Date(parsed.Expires) : undefined,
-      path: parsed.Path,
-      maxAge: parsed["Max-Age"] ? Number(parsed["Max-Age"]) : undefined,
-    };
+    if (!parsedCookie) continue;
 
-    if (parsed.accessToken) {
-      response.cookies.set("accessToken", parsed.accessToken, options);
-    }
+    const { name, value, options } = parsedCookie;
 
-    if (parsed.refreshToken) {
-      response.cookies.set("refreshToken", parsed.refreshToken, options);
-    }
+    response.cookies.set(name, value, options);
   }
 }
 
@@ -51,16 +122,13 @@ export async function proxy(request: NextRequest) {
   const refreshToken = request.cookies.get("refreshToken")?.value;
 
   let isAuthenticated = Boolean(accessToken);
-  const response = NextResponse.next();
+  let refreshedSetCookieHeader: string | string[] | undefined;
 
   if (!accessToken && refreshToken) {
     try {
       const sessionResponse = await checkSession();
-
       isAuthenticated = Boolean(sessionResponse.data);
-
-      const setCookieHeader = sessionResponse.headers["set-cookie"];
-      applySetCookieHeaders(response, setCookieHeader);
+      refreshedSetCookieHeader = sessionResponse.headers["set-cookie"];
     } catch {
       isAuthenticated = false;
     }
@@ -72,18 +140,12 @@ export async function proxy(request: NextRequest) {
 
   if (isAuthenticated && isPublicAuthPath(pathname)) {
     const redirectResponse = NextResponse.redirect(new URL("/", request.url));
-
-    if (!accessToken && refreshToken) {
-      try {
-        const sessionResponse = await checkSession();
-        const setCookieHeader = sessionResponse.headers["set-cookie"];
-        applySetCookieHeaders(redirectResponse, setCookieHeader);
-      } catch {}
-    }
-
+    applySetCookieHeaders(redirectResponse, refreshedSetCookieHeader);
     return redirectResponse;
   }
 
+  const response = NextResponse.next();
+  applySetCookieHeaders(response, refreshedSetCookieHeader);
   return response;
 }
 
