@@ -32,8 +32,10 @@ interface UpdateUserData {
   username: string;
 }
 
-export async function fetchNotes(params: FetchNotesParams): Promise<NotesResponse> {
-  const { data } = await api.get<NotesResponse>("/notes", {
+export async function fetchNotes(
+  params: FetchNotesParams
+): Promise<NotesResponse> {
+  const { data } = await api.get("/notes", {
     params: {
       page: params.page ?? 1,
       perPage: params.perPage ?? 12,
