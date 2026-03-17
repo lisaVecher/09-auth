@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { cookies } from "next/headers";
+// import { cookies } from "next/headers";
 import { getMe } from "@/lib/api/serverApi";
 import css from "./ProfilePage.module.css";
 
@@ -11,15 +11,15 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Profile | NoteHub",
     description: "User profile page in NoteHub application.",
-    url: "09-auth-chi-flax.vercel.app/profile",
+    url: "https://09-auth-chi-flax.vercel.app/profile",
   },
 };
 
 export default async function ProfilePage() {
-  const cookieStore = await cookies();
-  const cookieHeader = cookieStore.toString();
+  // const cookieStore = await cookies();
+  // const cookieHeader = cookieStore.toString();
 
-  const user = await getMe({ cookie: cookieHeader });
+  const user = await getMe();
 
   return (
     <main className={css.mainContent}>

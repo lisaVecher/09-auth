@@ -2,7 +2,7 @@
 
 import { ReactNode, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { checkSession } from "@/lib/api/clientApi";
+import { checkSession, getMe } from "@/lib/api/clientApi";
 import { useAuthStore } from "@/lib/store/authStore";
 
 interface AuthProviderProps {
@@ -34,13 +34,14 @@ export default function AuthProvider({ children }: AuthProviderProps) {
   useEffect(() => {
     const verifySession = async () => {
       try {
-        const user = await checkSession();
+        const session = await checkSession();
 
-        if (user) {
+        if (session) {
+          const user = await getMe();
           setUser(user);
 
           if (isAuthPath(pathname)) {
-            router.replace("/profile");
+            router.replace("/");
             return;
           }
         } else {

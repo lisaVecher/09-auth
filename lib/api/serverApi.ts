@@ -1,5 +1,8 @@
-import axios from "axios";
-import { baseURL } from "./api";
+// lib/api/serverApi.ts
+
+import api from "./api";
+import { cookies } from "next/headers";
+import type { AxiosResponse } from "axios";
 import type { Note } from "@/types/note";
 import type { User } from "@/types/user";
 
@@ -8,7 +11,6 @@ interface FetchNotesParams {
   perPage?: number;
   search?: string;
   tag?: string;
-  cookie?: string;
 }
 
 interface NotesResponse {
@@ -19,53 +21,87 @@ interface NotesResponse {
   total?: number;
 }
 
-interface ServerRequestOptions {
-  cookie?: string;
+function buildCookieHeader(
+  accessToken?: string,
+  refreshToken?: string,
+): string | undefined {
+  const cookieParts: string[] = [];
+
+  if (accessToken) {
+    cookieParts.push(`accessToken=${accessToken}`);
+  }
+
+  if (refreshToken) {
+    cookieParts.push(`refreshToken=${refreshToken}`);
+  }
+
+  return cookieParts.length ? cookieParts.join("; ") : undefined;
 }
 
-export async function fetchNotes(params: FetchNotesParams): Promise<NotesResponse> {
-  const { page = 1, perPage = 12, search, tag, cookie } = params;
+export async function fetchNotes(
+  params: FetchNotesParams = {},
+): Promise<NotesResponse> {
+  const cookieStore = await cookies();
 
-  const { data } = await axios.get<NotesResponse>(`${baseURL}/notes`, {
+  const accessToken = cookieStore.get("accessToken")?.value;
+  const refreshToken = cookieStore.get("refreshToken")?.value;
+
+  const cookieHeader = buildCookieHeader(accessToken, refreshToken);
+
+  const { data } = await api.get<NotesResponse>("/notes", {
     params: {
-      page,
-      perPage,
-      search,
-      tag,
+      page: params.page ?? 1,
+      perPage: params.perPage ?? 12,
+      search: params.search,
+      tag: params.tag,
     },
-    headers: cookie ? { Cookie: cookie } : undefined,
-    withCredentials: true,
+    headers: cookieHeader ? { Cookie: cookieHeader } : undefined,
   });
 
   return data;
 }
 
-export async function fetchNoteById(
-  id: string,
-  options?: ServerRequestOptions,
-): Promise<Note> {
-  const { data } = await axios.get<Note>(`${baseURL}/notes/${id}`, {
-    headers: options?.cookie ? { Cookie: options.cookie } : undefined,
-    withCredentials: true,
+export async function fetchNoteById(id: string): Promise<Note> {
+  const cookieStore = await cookies();
+
+  const accessToken = cookieStore.get("accessToken")?.value;
+  const refreshToken = cookieStore.get("refreshToken")?.value;
+
+  const cookieHeader = buildCookieHeader(accessToken, refreshToken);
+
+  const { data } = await api.get<Note>(`/notes/${id}`, {
+    headers: cookieHeader ? { Cookie: cookieHeader } : undefined,
   });
 
   return data;
 }
 
-export async function getMe(options?: ServerRequestOptions): Promise<User> {
-  const { data } = await axios.get<User>(`${baseURL}/users/me`, {
-    headers: options?.cookie ? { Cookie: options.cookie } : undefined,
-    withCredentials: true,
+export async function getMe(): Promise<User> {
+  const cookieStore = await cookies();
+
+  const accessToken = cookieStore.get("accessToken")?.value;
+  const refreshToken = cookieStore.get("refreshToken")?.value;
+
+  const cookieHeader = buildCookieHeader(accessToken, refreshToken);
+
+  const { data } = await api.get<User>("/users/me", {
+    headers: cookieHeader ? { Cookie: cookieHeader } : undefined,
   });
 
   return data;
 }
 
-export async function checkSession(options?: ServerRequestOptions): Promise<User | null> {
-  const { data } = await axios.get<User | null>(`${baseURL}/auth/session`, {
-    headers: options?.cookie ? { Cookie: options.cookie } : undefined,
-    withCredentials: true,
+export async function checkSession(): Promise<AxiosResponse<User | null>> {
+  const cookieStore = await cookies();
+
+  const accessToken = cookieStore.get("accessToken")?.value;
+  const refreshToken = cookieStore.get("refreshToken")?.value;
+
+  const cookieHeader = buildCookieHeader(accessToken, refreshToken);
+
+  const response = await api.get<User | null>("/auth/session", {
+    headers: cookieHeader ? { Cookie: cookieHeader } : undefined,
   });
 
-  return data;
+  return response;
 }
