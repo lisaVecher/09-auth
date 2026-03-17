@@ -31,9 +31,11 @@ export default function NoteDetailsClient({ id }: NoteDetailsClientProps) {
 
       <p className={css.content}>{data.content}</p>
 
-      <p className={css.date}>
-        {new Date(data.createdAt).toLocaleDateString()}
-      </p>
+    <p className={css.date}>
+  {data.createdAt
+    ? new Date(data.createdAt).toLocaleDateString()
+    : "No date"}
+</p>
     </div>
   );
 }
