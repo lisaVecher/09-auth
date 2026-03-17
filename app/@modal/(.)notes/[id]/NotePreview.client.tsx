@@ -39,9 +39,11 @@ export default function NotePreviewClient({ id }: NotePreviewClientProps) {
 
             <p className={css.content}>{data.content}</p>
 
-            <p className={css.date}>
-              {new Date(data.createdAt).toLocaleDateString()}
-            </p>
+          <p className={css.date}>
+  {data.createdAt
+    ? new Date(data.createdAt).toLocaleDateString()
+    : "No date"}
+</p>
 
             <button className={css.button} onClick={handleClose}>
               Close
